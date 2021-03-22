@@ -126,7 +126,7 @@ function compileEventClause(compiler, clause) {
   compiler.allLvars.push(eventLvar);
   assert(
     form[2].type === "symbol" && form[2].text === "where",
-    `Event clause must be of the form \`(event ?eventName where ...)\``,
+    "Event clause must be of the form `(event ?eventName where ...)`",
     compiler.errCtx
   );
 
