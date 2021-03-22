@@ -3,7 +3,7 @@ function isWhitespace(ch) {
 }
 
 function isSymbolChar(ch) {
-  return ch && ch !== "\"" && ch !== "(" && ch !== ")" && !isWhitespace(ch);
+  return ch && !["\"", "(", ")", ";"].includes(ch) && !isWhitespace(ch);
 }
 
 function tokenize(input) {
@@ -18,6 +18,12 @@ function tokenize(input) {
     else if (ch === ")") {
       tokens.push({type: "endList"});
       pos += 1;
+    }
+    else if (ch === ";") { // skip line comment
+      while (input[pos] && input[pos] !== "\n") {
+        pos += 1;
+      }
+      pos += 1; // advance past the newline
     }
     else if (isWhitespace(ch)) { // skip whitespace
       while (isWhitespace(input[pos])) {

@@ -7,11 +7,12 @@ const test1 = `
     eventType: showHospitality,
     actor: ?host,
     target: ?guest,
-    ?host.value: communalism)
+    ?host.value: communalism) ; not strictly needed?
   (event ?e3 where
     tag: harm,
     actor: ?host,
     target: ?guest)
+  ;; make sure the guest hasn't left town
   (unless-event ?eMid between ?e1 ?e3 where
     eventType: leaveTown,
     actor: ?guest))
