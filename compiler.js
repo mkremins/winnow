@@ -184,6 +184,52 @@ function compileEventClause(compiler, clause) {
 }
 
 
+function compileUnlessEventClause(compiler, clause) {
+  compiler.errCtx.push(`In unless-event clause:`);
+  const form = clause.form;
+  const rest = form.slice(1);
+
+  // parse optional event name
+  if (isLvar(rest[0])) {
+    const eventLvar = rest.shift().text;
+    // TODO assert eventLvar isn't duplicating another lvar
+    clause.eventLvar = eventLvar;
+  }
+
+  // set default `between` bounds
+  clause.betweenStart = compiler.firstEventLvar;
+  clause.betweenEnd = compiler.lastEventLvar;
+
+  // parse optional `between ?first ?second` bounds
+  if (rest[0] && rest[0].text === "between") {
+    rest.shift();
+    const betweenStartToken = rest.shift();
+    const betweenEndToken = rest.shift();
+    assert(
+      isLvar(betweenStartToken) && isLvar(betweenEndToken),
+      "Between clause must consist of two event names bound by event clauses",
+      compiler.errCtx
+    );
+    clause.betweenStart = betweenStartToken.text;
+    clause.betweenEnd = betweenEndToken.text;
+  }
+
+  // assert next is `where`
+  const whereSym = rest.shift();
+  assert(
+    whereSym && whereSym.text === "where",
+    "Unless-event clause must be of the form `(unless-event metadata? where ...)`",
+    compiler.errCtx
+  );
+
+  // TODO parse body
+
+  // consolidate everything we know about this clause and return
+  compiler.errCtx.pop();
+  return clause;
+}
+
+
 function compilePattern(form) {
   // check overall pattern form
   const errCtx = [];
@@ -197,26 +243,38 @@ function compilePattern(form) {
   const patternName = form[1].text;
   errCtx.push(`In pattern '${patternName}':`);
 
-  // compile individual clauses
+  // classify top-level pattern clauses
   const compiler = {allLvars: [], errCtx: errCtx};
   const clauses = form.slice(2).map(subform => analyzeTopLevelClause(compiler, subform));
   const eventClauses = clauses.filter(c => c.type === "event");
   assert(
     eventClauses.length >= 2,
-    "Pattern must contain at least two positive `event` clauses",
+    "Pattern must contain at least two positive event clauses",
     errCtx
   );
-  const constraintClauses = clauses.filter(c => c.type === "unless-event");
+  const unlessEventClauses = clauses.filter(c => c.type === "unless-event");
+
+  // compile event clauses
   eventClauses.forEach(ec => compileEventClause(compiler, ec));
-  // TODO check that no two event clauses have the same eventLvar
-  //constraintClauses.forEach(compileConstraintClause);
+  const eventLvars = eventClauses.map(ec => ec.eventLvar);
+  assert(
+    eventLvars.length === (new Set(eventLvars)).size,
+    "Within a pattern, no two event clauses may use the same event name",
+    errCtx
+  );
+
+  // compile unless-event clauses
+  compiler.eventLvars = eventLvars;
+  compiler.firstEventLvar = eventLvars[0];
+  compiler.lastEventLvar = eventLvars[eventLvars.length - 1];
+  unlessEventClauses.forEach(uec => compileUnlessEventClause(compiler, uec));
 
   // return fully compiled acceptor prototype
   return {
     name: patternName,
     unboundLvars: compiler.allLvars,
     eventClauses: eventClauses,
-    globalConstraints: constraintClauses
+    globalConstraints: unlessEventClauses
   };
 }
 
