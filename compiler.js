@@ -14,6 +14,29 @@ function emitSymbolOrString(token) {
   return token.type === "symbol" && token.text.startsWith("?") ? token.text : `"${token.text}"`;
 }
 
+function isBuiltinFn(name) {
+  // copied from datascript.query/builtins:
+  // https://github.com/tonsky/datascript/blob/master/src/datascript/query.cljc#L194
+  const builtins = [
+    "=", "==", "not=", "!=", "<", ">", "<=", ">=", "+", "-",
+    "*", "/", "quot", "rem", "mod", "inc", "dec", "max", "min",
+    "zero?", "pos?", "neg?", "even?", "odd?", "compare",
+    "rand", "rand-int",
+    "true?", "false?", "nil?", "some?", "not", "and", "or",
+    "complement", "identical?",
+    "identity", "keyword", "meta", "name", "namespace", "type",
+    "vector", "list", "set", "hash-map", "array-map",
+    "count", "range", "not-empty", "empty?", "contains?",
+    "str", "pr-str", "print-str", "println-str", "prn-str", "subs",
+    "re-find", "re-matches", "re-seq", "re-pattern",
+    "-differ?", "get-else", "get-some", "missing?", "ground",
+    "clojure.string/blank?", "clojure.string/includes?",
+    "clojure.string/starts-with?", "clojure.string/ends-with?",
+    "tuple", "untuple"
+  ];
+  return builtins.includes(name);
+}
+
 
 function collectLvars(form) {
   if (Array.isArray(form)) {
@@ -59,12 +82,9 @@ function analyzeEventOrUnlessEventClauseBody(compiler, body) {
           asts.push({type: "negatedAttrValPair", lhs: part[1], rhs: part[2]});
         }
         else if (part.length === 2) {
-          asts.push({
-            type: "negatedRuleOrFnCall",
-            form: part[1],
-            head: part[1][1],
-            rest: part[1].slice(1)
-          });
+          const form = part[1];
+          const head = form[1];
+          asts.push({type: "negatedRuleOrFnCall", form, head, rest: form.slice(1)});
         }
         else {
           assert(
@@ -76,7 +96,8 @@ function analyzeEventOrUnlessEventClauseBody(compiler, body) {
       }
       else {
         // analyze a rule or fn call
-        asts.push({type: "ruleOrFnCall", form: part, head: head, rest: part.slice(1)});
+        const form = part;
+        asts.push({type: "ruleOrFnCall", form, head, rest: form.slice(1)});
       }
     }
     else if (part.type === "symbol") {
@@ -119,7 +140,7 @@ function compileEventClauseRuleOrFnCall(compiler, ast) {
   }
 
   // assemble and return the final where clause
-  const isFn = true; // TODO determine by checking head against list of rule/fn names
+  const isFn = isBuiltinFn(form[0].text);
   const inner = form.map(emitSymbolOrString).join(" ");
   const where = isFn ? `[(${inner})]` : `(${inner})`;
   compiler.errCtx.pop();
