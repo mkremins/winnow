@@ -41,8 +41,66 @@ function analyzeTopLevelClause(compiler, form) {
 }
 
 
-function compileEventClauseRuleOrFnCall(compiler, form) {
+function analyzeEventOrUnlessEventClauseBody(compiler, body) {
+  const asts = [];
+  while (body.length > 0) {
+    const part = body.shift();
+    if (Array.isArray(part)) {
+      // figure out what kind of parenthesized clause we're compiling
+      const head = part[0];
+      assert(
+        head && head.type === "symbol",
+        "Parenthesized clauses must begin with a rule name, function name, or `not`",
+        compiler.errCtx
+      );
+      if (head.text === "not") {
+        // analyze a negated clause
+        if (part.length === 3) {
+          asts.push({type: "negatedAttrValPair", lhs: part[1], rhs: part[2]});
+        }
+        else if (part.length === 2) {
+          asts.push({
+            type: "negatedRuleOrFnCall",
+            form: part[1],
+            head: part[1][1],
+            rest: part[1].slice(1)
+          });
+        }
+        else {
+          assert(
+            false,
+            "Negated body clause must be either `(not attr val)` or `(not (ruleOrFn ...))`",
+            compiler.errCtx
+          );
+        }
+      }
+      else {
+        // analyze a rule or fn call
+        asts.push({type: "ruleOrFnCall", form: part, head: head, rest: part.slice(1)});
+      }
+    }
+    else if (part.type === "symbol") {
+      // analyze an attr/value pair
+      const lhs = part;
+      const rhs = body.shift();
+      asts.push({type: "attrValPair", lhs: lhs, rhs: rhs});
+    }
+    else {
+      // loose string or other form in the body somehow? error out
+      assert(
+        false,
+        "Event clause body may contain only attr/val pairs and rule/fn calls",
+        compiler.errCtx
+      );
+    }
+  }
+  return asts;
+}
+
+
+function compileEventClauseRuleOrFnCall(compiler, ast) {
   // check overall rule/fn call form
+  const form = ast.form;
   compiler.errCtx.push(`In rule or fn call '${form[0].text}':`);
   assert(
     form.every(isSymbolOrString),
@@ -69,13 +127,14 @@ function compileEventClauseRuleOrFnCall(compiler, form) {
 }
 
 
-function compileEventClauseAttrValuePair(compiler, lhs, rhs, eventLvar) {
+function compileEventClauseAttrValuePair(compiler, ast, eventLvar) {
   // parse an attribute/value pair
   // possible cases:
   //   1. lhs is event attr, rhs is value
   //   2. lhs is single-dotted lvar, rhs is value
   //   3. lhs is unbound undotted lvar, rhs is fncall (TODO handle this case)
   // for 1 and 2, value can be constant, unbound lvar, or bound lvar
+  const {lhs, rhs} = ast;
   compiler.errCtx.push(`In attr/val pair '${lhs.text}':`);
   assert(
     isSymbolOrString(rhs),
@@ -134,44 +193,30 @@ function compileEventClause(compiler, clause) {
   // keeping track of new unbound lvars we encounter along the way
   // (ie adding them to both clause.unboundLvars and allLvars)
   const body = form.slice(3);
+  const bodyAsts = analyzeEventOrUnlessEventClauseBody(compiler, body);
   const where = [`[${eventLvar} "type" "event"]`];
   const unboundLvars = [eventLvar];
-  while (body.length > 0) {
-    const part = body.shift();
-    if (Array.isArray(part)) {
-      // figure out what kind of parenthesized clause we're compiling
-      const head = part[0];
-      assert(
-        head && head.type === "symbol",
-        "Parenthesized clauses must begin with a rule name, function name, or `not`",
-        compiler.errCtx
-      );
-      if (head.text === "not") {
-        // compile a negated clause
-        assert(false, "Negation currently unsupported", compiler.errCtx);
-      }
-      else {
-        // compile a rule or fn call
-        const compiled = compileEventClauseRuleOrFnCall(compiler, part);
-        compiled.where.forEach(nw => where.push(nw));
-        compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
-      }
-    }
-    else if (part.type === "symbol") {
+  for (const ast of bodyAsts) {
+    if (ast.type === "attrValPair") {
       // compile an attr/value pair
-      const lhs = part;
-      const rhs = body.shift();
-      const compiled = compileEventClauseAttrValuePair(compiler, lhs, rhs, eventLvar);
+      const compiled = compileEventClauseAttrValuePair(compiler, ast, eventLvar);
       compiled.where.forEach(nw => where.push(nw));
       compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
     }
+    else if (ast.type === "ruleOrFnCall") {
+      // compile a rule or fn call
+      const compiled = compileEventClauseRuleOrFnCall(compiler, ast);
+      compiled.where.forEach(nw => where.push(nw));
+      compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
+    }
+    else if (ast.type === "negatedAttrValPair") {
+      assert(false, "Negation currently unsupported", compiler.errCtx);
+    }
+    else if (ast.type === "negatedRuleOrFnCall") {
+      assert(false, "Negation currently unsupported", compiler.errCtx);
+    }
     else {
-      // loose string or other form in the body somehow? error out
-      assert(
-        false,
-        "Event clause body may contain only attr/val pairs and rule/fn calls",
-        compiler.errCtx
-      );
+      assert(false, "Invalid AST node type: " + ast.type, compiler.errCtx);
     }
   }
 
@@ -223,6 +268,8 @@ function compileUnlessEventClause(compiler, clause) {
   );
 
   // TODO parse body
+  const bodyAsts = analyzeEventOrUnlessEventClauseBody(compiler, rest);
+  clause.body = bodyAsts;
 
   // consolidate everything we know about this clause and return
   compiler.errCtx.pop();
