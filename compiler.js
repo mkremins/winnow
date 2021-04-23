@@ -327,6 +327,12 @@ function compileUnlessEventClause(compiler, clause) {
     }
   }
 
+  // build a single not-join clause representing this unless-event clause
+  const orderConstraint = `[(< ${clause.betweenStart} ${clause.eventLvar} ${clause.betweenEnd})]`;
+  const indentedWheres = where.concat([orderConstraint]).map(w => "  " + w).join("\n");
+  const lvarsToJoin = compiler.allLvars.join(" ");
+  clause.completeNotJoin = `(not-join [${lvarsToJoin}]\n${indentedWheres})`;
+
   // consolidate everything we know about this clause and return
   compiler.errCtx.pop();
   delete compiler.inUnlessEventContext;
@@ -375,12 +381,20 @@ function compilePattern(form) {
   compiler.lastEventLvar = eventLvars[eventLvars.length - 1];
   unlessEventClauses.forEach(uec => compileUnlessEventClause(compiler, uec));
 
+  // build a single DataScript query representing this complete sifting pattern
+  const completeQuery = `[:find ${compiler.allLvars.join(" ")}
+ :in $ %
+ :where
+${mapcat(eventClauses, ec => ec.where.join("\n")).join("\n")}
+${mapcat(unlessEventClauses, uec => uec.completeNotJoin).join("\n")}]`;
+
   // return fully compiled acceptor prototype
   return {
     name: patternName,
     unboundLvars: compiler.allLvars,
     eventClauses: eventClauses,
-    globalConstraints: unlessEventClauses
+    globalConstraints: unlessEventClauses,
+    completeQuery: completeQuery
   };
 }
 
