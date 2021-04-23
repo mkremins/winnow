@@ -7,4 +7,9 @@ function mapcat(xs, fn) {
     else res.push(x);
   }
   return res;
-};
+}
+
+// Return a random item from a list.
+function randNth(items) {
+  return items[Math.floor(Math.random()*items.length)];
+}

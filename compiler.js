@@ -37,6 +37,14 @@ function isBuiltinFn(name) {
   return builtins.includes(name);
 }
 
+function freshLvar() {
+  const digits = [];
+  for (let i = 0; i < 6; i++) {
+    digits.push(randNth([0,1,2,3,4,5,6,7,8,9]));
+  }
+  return "?e" + digits.join("");
+}
+
 
 function collectLvars(form) {
   if (Array.isArray(form)) {
@@ -79,12 +87,12 @@ function analyzeEventOrUnlessEventClauseBody(compiler, body) {
       if (head.text === "not") {
         // analyze a negated clause
         if (part.length === 3) {
-          asts.push({type: "negatedAttrValPair", lhs: part[1], rhs: part[2]});
+          asts.push({type: "attrValPair", isNegated: true, lhs: part[1], rhs: part[2]});
         }
         else if (part.length === 2) {
           const form = part[1];
           const head = form[1];
-          asts.push({type: "negatedRuleOrFnCall", form, head, rest: form.slice(1)});
+          asts.push({type: "ruleOrFnCall", isNegated: true, form, head, rest: form.slice(1)});
         }
         else {
           assert(
@@ -119,7 +127,7 @@ function analyzeEventOrUnlessEventClauseBody(compiler, body) {
 }
 
 
-function compileEventClauseRuleOrFnCall(compiler, ast) {
+function compileRuleOrFnCall(compiler, ast) {
   // check overall rule/fn call form
   const form = ast.form;
   compiler.errCtx.push(`In rule or fn call '${form[0].text}':`);
@@ -135,20 +143,25 @@ function compileEventClauseRuleOrFnCall(compiler, ast) {
   const unboundLvars = [];
   const newLvars = lvars.filter(lvar => !compiler.allLvars.includes(lvar));
   for (let newLvar of newLvars) {
-    compiler.allLvars.push(newLvar);
+    if (!ast.isNegated && !compiler.inUnlessEventContext) {
+      compiler.allLvars.push(newLvar);
+    }
     unboundLvars.push(newLvar);
   }
 
   // assemble and return the final where clause
-  const isFn = isBuiltinFn(form[0].text);
+  ast.isFn = isBuiltinFn(form[0].text);
   const inner = form.map(emitSymbolOrString).join(" ");
-  const where = isFn ? `[(${inner})]` : `(${inner})`;
+  const where = ast.isFn ? `[(${inner})]` : `(${inner})`;
+  const outer = ast.isNegated ? `(not ${where})` : where;
   compiler.errCtx.pop();
-  return {where: [where], unboundLvars};
+  ast.where = [outer];
+  ast.unboundLvars = unboundLvars;
+  return ast;
 }
 
 
-function compileEventClauseAttrValuePair(compiler, ast, eventLvar) {
+function compileAttrValuePair(compiler, ast, eventLvar) {
   // parse an attribute/value pair
   // possible cases:
   //   1. lhs is event attr, rhs is value
@@ -172,7 +185,9 @@ function compileEventClauseAttrValuePair(compiler, ast, eventLvar) {
   // (might need to add new implicit dotted lvars later)
   const unboundLvars = [];
   if (rhsIsLvar && !compiler.allLvars.includes(rhs.text)) {
-    compiler.allLvars.push(rhs.text);
+    if (!ast.isNegated && !compiler.inUnlessEventContext) {
+      compiler.allLvars.push(rhs.text);
+    }
     unboundLvars.push(rhs.text);
   }
 
@@ -188,8 +203,11 @@ function compileEventClauseAttrValuePair(compiler, ast, eventLvar) {
   const outLvar = lhsIsLvar ? lhsParts[0] : eventLvar;
   const outAttr = lhsIsLvar ? lhsParts[1] : lhs.text;
   const where = `[${outLvar} "${outAttr}" ${emitSymbolOrString(rhs)}]`;
+  const outer = ast.isNegated ? `(not ${where})` : where;
   compiler.errCtx.pop();
-  return {where: [where], unboundLvars};
+  ast.where = [outer];
+  ast.unboundLvars = unboundLvars;
+  return ast;
 }
 
 
@@ -220,21 +238,15 @@ function compileEventClause(compiler, clause) {
   for (const ast of bodyAsts) {
     if (ast.type === "attrValPair") {
       // compile an attr/value pair
-      const compiled = compileEventClauseAttrValuePair(compiler, ast, eventLvar);
+      const compiled = compileAttrValuePair(compiler, ast, eventLvar);
       compiled.where.forEach(nw => where.push(nw));
       compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
     }
     else if (ast.type === "ruleOrFnCall") {
       // compile a rule or fn call
-      const compiled = compileEventClauseRuleOrFnCall(compiler, ast);
+      const compiled = compileRuleOrFnCall(compiler, ast);
       compiled.where.forEach(nw => where.push(nw));
       compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
-    }
-    else if (ast.type === "negatedAttrValPair") {
-      assert(false, "Negation currently unsupported", compiler.errCtx);
-    }
-    else if (ast.type === "negatedRuleOrFnCall") {
-      assert(false, "Negation currently unsupported", compiler.errCtx);
     }
     else {
       assert(false, "Invalid AST node type: " + ast.type, compiler.errCtx);
@@ -260,6 +272,9 @@ function compileUnlessEventClause(compiler, clause) {
     const eventLvar = rest.shift().text;
     // TODO assert eventLvar isn't duplicating another lvar
     clause.eventLvar = eventLvar;
+  }
+  if (!clause.eventLvar) {
+    clause.eventLvar = freshLvar();
   }
 
   // set default `between` bounds
@@ -288,12 +303,35 @@ function compileUnlessEventClause(compiler, clause) {
     compiler.errCtx
   );
 
-  // TODO parse body
+  // parse body
+  compiler.inUnlessEventContext = true;
   const bodyAsts = analyzeEventOrUnlessEventClauseBody(compiler, rest);
   clause.body = bodyAsts;
+  const where = [`[${clause.eventLvar} "type" "event"]`];
+  const unboundLvars = [clause.eventLvar];
+  for (const ast of bodyAsts) {
+    if (ast.type === "attrValPair") {
+      // compile an attr/value pair
+      const compiled = compileAttrValuePair(compiler, ast, clause.eventLvar);
+      compiled.where.forEach(nw => where.push(nw));
+      compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
+    }
+    else if (ast.type === "ruleOrFnCall") {
+      // compile a rule or fn call
+      const compiled = compileRuleOrFnCall(compiler, ast);
+      compiled.where.forEach(nw => where.push(nw));
+      compiled.unboundLvars.forEach(lvar => unboundLvars.push(lvar));
+    }
+    else {
+      assert(false, "Invalid AST node type: " + ast.type, compiler.errCtx);
+    }
+  }
 
   // consolidate everything we know about this clause and return
   compiler.errCtx.pop();
+  delete compiler.inUnlessEventContext;
+  clause.unboundLvars = unboundLvars;
+  clause.where = where;
   return clause;
 }
 
