@@ -1,3 +1,10 @@
+// Create a DOM element from an HTML string.
+function createNode(html) {
+  let div = document.createElement('div');
+  div.innerHTML = html;
+  return div.firstChild;
+}
+
 // modified from https://github.com/substack/node-concat-map/blob/master/index.js
 function mapcat(xs, fn) {
   var res = [];
