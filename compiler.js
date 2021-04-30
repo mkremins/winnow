@@ -150,9 +150,10 @@ function compileRuleOrFnCall(compiler, ast) {
   }
 
   // assemble and return the final where clause
-  ast.isFn = isBuiltinFn(form[0].text);
-  const inner = form.map(emitSymbolOrString).join(" ");
-  const where = ast.isFn ? `[(${inner})]` : `(${inner})`;
+  const ruleOrFn = form[0].text;
+  ast.isFn = isBuiltinFn(ruleOrFn);
+  const args = form.slice(1).map(emitSymbolOrString).join(" ");
+  const where = ast.isFn ? `[(${ruleOrFn} ${args})]` : `(${ruleOrFn} ${args})`;
   const outer = ast.isNegated ? `(not ${where})` : where;
   compiler.errCtx.pop();
   ast.where = [outer];
