@@ -1,6 +1,11 @@
+// Make a copy of the object.
+function clone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 // Create a DOM element from an HTML string.
 function createNode(html) {
-  let div = document.createElement('div');
+  const div = document.createElement("div");
   div.innerHTML = html;
   return div.firstChild;
 }
@@ -19,4 +24,12 @@ function mapcat(xs, fn) {
 // Return a random item from a list.
 function randNth(items) {
   return items[Math.floor(Math.random()*items.length)];
+}
+
+/// DataScript util functions
+
+// Given the DB, return the EID of the most recently added entity.
+function newestEID(db) {
+  const allDatoms = datascript.datoms(db, ":eavt");
+  return allDatoms[allDatoms.length - 1].e;
 }
