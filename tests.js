@@ -64,7 +64,7 @@ const allTests = [
   criticismOfHypocrisy,
 ];
 
-const mainEl = document.querySelector("main");
+const compilerTestsNode = document.getElementById("compilerTests");
 const testResults = [];
 for (const rawPattern of allTests) {
   const parsed = parse(rawPattern);
@@ -79,12 +79,13 @@ for (const rawPattern of allTests) {
   const feltCode = withoutClosingBracket.trim();
 
   // add this test to the DOM
-  mainEl.appendChild(createNode(`<section class="example" id="${compiledPattern.name}">
-    <h2>${compiledPattern.name}</h2>
-    <pre class="rawPattern">${rawPattern}</pre>
+  const testNode = createNode(`<section class="compilerTest" id="${compiledPattern.name}">
+    <h3>${compiledPattern.name}</h3>
+    <pre class="winnow">${rawPattern}</pre>
     <pre class="felt">${feltCode}</pre>
     <!--<pre class="acceptor">${JSON.stringify(compiled, null, 2)}</pre>-->
-  </div>`));
+  </div>`);
+  compilerTestsNode.appendChild(testNode);
 }
 
 /// test execution
@@ -217,3 +218,99 @@ function testGetAllMatches() {
 }
 
 testGetAllMatches();
+
+/// incremental match visualization
+
+function renderPartialMatches(test) {
+  const partialMatchesDiv = test.node.querySelector(".partialMatches");
+  partialMatchesDiv.innerHTML = "";
+  for (const partialMatch of test.partialMatches) {
+    const innerRows = [];
+    for (const clause of partialMatch.pattern.eventClauses) {
+      const hasMatched = clause.unboundLvars.every(lvar => hasBinding(partialMatch, lvar));
+      const bindings = clause.unboundLvars.map(
+        lvar => `${lvar}:${partialMatch.bindings[lvar]}`
+      );
+      innerRows.push(`<div class="row">${hasMatched ? bindings : "..."}</div>`);
+    }
+    const partialMatchDiv = createNode(`<div class="partialMatch ${partialMatch.lastStep}">
+      <div class="row header">${partialMatch.pattern.name}</div>
+      ${innerRows.join("")}
+    </div>`);
+    partialMatchesDiv.appendChild(partialMatchDiv);
+  }
+}
+
+function pushEventToTable(table, event) {
+  const tbody = table.getElementsByTagName('tbody')[0];
+  const tr = tbody.insertRow();
+  for (const key of Object.keys(event)) {
+    const td = tr.insertCell();
+    //td.innerText = `${key}:${event[key]}`;
+    td.innerText = event[key];
+  }
+}
+
+function stepSiftingTest(test) {
+  const rules = "[]";
+  console.log("step", test.name, test.eventIdx);
+  const event = test.events[test.eventIdx];
+  if (!event) return;
+
+  // advance .selected style along the event table
+  const prevRow = test.node.querySelectorAll(".eventTable tbody tr")[test.eventIdx - 1];
+  const nextRow = test.node.querySelectorAll(".eventTable tbody tr")[test.eventIdx];
+  if (prevRow) prevRow.classList.remove("selected");
+  nextRow.classList.add("selected");
+
+  // add event to DB, advance partial matches, render partial matches
+  test.db = addEvent(test.db, event);
+  const latestEventID = newestEID(test.db);
+  test.partialMatches = mapcat(test.partialMatches,
+    pm => tryAdvance(pm, test.db, rules, latestEventID)
+  );
+  renderPartialMatches(test);
+  test.eventIdx++;
+}
+
+const siftingTests = [];
+
+siftingTests.push({
+  name: "violationOfHospitality_2x",
+  events: [
+    {eventType: "enterTown", actor: 1},
+    {eventType: "showHospitality", actor: 2, target: 1},
+    {eventType: "stealFrom", tags: ["harm"], actor: 2, target: 1},
+    {eventType: "attack", tags: ["harm"], actor: 2, target: 1}
+  ]
+});
+
+const siftingTestsNode = document.getElementById("siftingTests");
+for (const test of siftingTests) {
+  // set up test render target
+  test.node = createNode(`<section class="siftingTest" id="#${test.name}">
+    <h3>${test.name} <button class="step">Step</button></h3>
+    <table class="eventTable">
+      <thead><tr><th>Events</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="partialMatches"></div>
+  </section>`);
+  test.node.querySelector(".step").onclick = () => stepSiftingTest(test);
+  siftingTestsNode.appendChild(test.node);
+
+  // render events into event table
+  const eventTable = test.node.querySelector(".eventTable");
+  for (const event of test.events) {
+    pushEventToTable(eventTable, event);
+  }
+
+  // set up test state
+  const compiledPatterns = testResults.map(tr => tr.compiled[0]);
+  test.partialMatches = compiledPatterns.map(pat => {return {pattern: pat, bindings: {}}});
+  test.db = createDB();
+  test.eventIdx = 0;
+
+  // render initial partial matches
+  renderPartialMatches(test);
+}

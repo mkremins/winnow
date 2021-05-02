@@ -9,17 +9,43 @@
   <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { font-size: 16px; font-family: Georgia; }
-  body { max-width: 1200px; padding: 1rem; }
+  body { padding: 1rem; }
   section { display: flex; flex-flow: row wrap; margin-bottom: 2rem; }
-  h1, h2 { margin-bottom: 1rem; width: 100%; }
+  h1, h2, h3 { margin-bottom: 1rem; width: 100%; }
+  hr { margin-bottom: 1rem; margin-top: 1rem; }
+
+  /* compiler tests */
   pre { background: #eee; font-family: "Source Code Pro", monospace; padding: 0.5rem; }
-  pre.rawPattern { width: 55%; }
+  pre.winnow { width: 55%; }
   pre.felt { margin-left: 1rem; width: calc(45% - 1rem); }
+
+  /* sifting tests */
+  .siftingTest .eventTable, .siftingTest .partialMatches { font-family: "Source Code Pro", monospace; }
+  .eventTable { width: 22%; margin-right: 3%; }
+  .eventTable tbody td { white-space: pre; }
+  .eventTable tr.selected { background: lemonchiffon; }
+  .partialMatches { display: flex; flex-flow: row wrap; width: 75%; }
+  .partialMatch { margin-bottom: 1rem; margin-right: 1rem; width: 200px; }
+  .partialMatch .header { background: #555; color: white; font-weight: bold; }
+  .partialMatch.complete .header { background: darkgreen; }
+  .partialMatch.accept .header { background: darkblue; }
+  .partialMatch.die .header { background: darkred; }
+  .partialMatch .row { padding: 0.5rem; }
+  .partialMatch .row:not(.header):nth-child(odd) { background: #eee; }
+  .partialMatch .row:nth-child(even) { background: #ddd; }
   </style>
 </head>
 <body>
   <main>
-    <h1>Examples</h1>
+    <h1>Winnow Tests</h1>
+    <hr>
+    <div id="siftingTests">
+      <h2>Sifting Tests</h2>
+    </div>
+    <hr>
+    <div id="compilerTests">
+      <h2>Compiler Tests</h2>
+    </div>
   </main>
   <script src="datascript-0.18.4.min.js"></script>
   <script src="util.js"></script>
