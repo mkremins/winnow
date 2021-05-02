@@ -279,8 +279,11 @@ siftingTests.push({
   name: "violationOfHospitality_2x",
   events: [
     {eventType: "enterTown", actor: 1},
+    {eventType: "irrelevantEvent", actor: 3},
     {eventType: "showHospitality", actor: 2, target: 1},
+    {eventType: "irrelevantEvent", actor: 1},
     {eventType: "stealFrom", tags: ["harm"], actor: 2, target: 1},
+    {eventType: "leaveTown", actor: 1},
     {eventType: "attack", tags: ["harm"], actor: 2, target: 1}
   ]
 });
