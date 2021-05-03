@@ -42,10 +42,9 @@ function tryAdvance(partialMatch, db, rules, latestEventID) {
     if (!applicableConstraint(partialMatch, constraint)) continue;
     const results = datascript.q(
       `[:find ${constraint.unboundLvars}
-        :in $ % ${boundLvars}
-        :where ${constraint.where.join("\n")}
-        [(= ${constraint.eventLvar} ${latestEventID})]]`,
-      db, rules, ...boundValues
+        :in $ % ${constraint.eventLvar} ${boundLvars}
+        :where ${constraint.where.join("\n")}]`,
+      db, rules, latestEventID, ...boundValues
     );
     if (results.length > 0) {
       partialMatch.lastStep = "die";
@@ -63,10 +62,9 @@ function tryAdvance(partialMatch, db, rules, latestEventID) {
   const eventClause = pattern.eventClauses[eventClauseIdx];
   const results = datascript.q(
     `[:find ${eventClause.unboundLvars}
-      :in $ % ${boundLvars}
-      :where ${eventClause.where.join("\n")}
-      [(= ${eventClause.eventLvar} ${latestEventID})]]`,
-    db, rules, ...boundValues
+      :in $ % ${eventClause.eventLvar} ${boundLvars}
+      :where ${eventClause.where.join("\n")}]`,
+    db, rules, latestEventID, ...boundValues
   );
   const newPartialMatches = results.map(result => {
     return {
