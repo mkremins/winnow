@@ -386,8 +386,8 @@ function compilePattern(form) {
   const completeQuery = `[:find ${compiler.allLvars.join(" ")}
  :in $ %
  :where
-[(< ${eventClauses.map(ec => ec.eventLvar).join(" ")})]
 ${mapcat(eventClauses, ec => ec.where.join("\n")).join("\n")}
+[(< ${eventClauses.map(ec => ec.eventLvar).join(" ")})]
 ${mapcat(unlessEventClauses, uec => uec.completeNotJoin).join("\n")}]`;
 
   // return fully compiled acceptor prototype
