@@ -361,8 +361,8 @@ function compilePattern(form) {
   const clauses = form.slice(2).map(subform => analyzeTopLevelClause(compiler, subform));
   const eventClauses = clauses.filter(c => c.type === "event");
   assert(
-    eventClauses.length >= 2,
-    "Pattern must contain at least two positive event clauses",
+    eventClauses.length >= 1,
+    "Pattern must contain at least one positive event clause",
     errCtx
   );
   const unlessEventClauses = clauses.filter(c => c.type === "unless-event");
