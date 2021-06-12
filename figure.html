@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Winnow Figure</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; font-family: Georgia; }
+  body { padding: 0 1rem; }
+  h1, h2, h3 { margin-bottom: 1rem; width: 100%; }
+  hr { margin-bottom: 1rem; margin-top: 1rem; }
+
+  table { border-collapse:collapse; }
+
+  td:first-child { width: 340px; }
+  td:nth-child(2) { width: 860px; }
+  td:last-child { width: 300px; font-size: 20px; }
+
+  tr td {border-bottom: 1px solid #ccc; padding: 0.5rem 0; }
+  tr th {border-bottom: 1px solid #ccc; padding: 0.5rem 0; font-size: 20px; }
+
+  pre { /*background: #eee;*/ font-family: "Source Code Pro", monospace; padding: 0.5rem; }
+  code { font-family: "Source Code Pro", monospace;  white-space: pre; }
+
+  .partialMatches { font-family: "Source Code Pro", monospace; }
+  .partialMatches { display: flex; flex-flow: row wrap; }
+  .partialMatch { margin-right: 10px; width: 200px; position: relative;  }
+  .partialMatch .header { background: #555; color: white; font-weight: bold; }
+  .partialMatch.complete .header { background: darkgreen; }
+  .partialMatch.accept .header { background: darkblue; }
+  /*.partialMatch.fork .header { background: linear-gradient(to right, #555, darkblue); }
+  .partialMatch.forkComplete .header { background: linear-gradient(to right, #555, darkgreen); }*/
+  .partialMatch.die .header { background: darkred; text-decoration: line-through; }
+  .partialMatch .row { padding: 0.1rem; }
+  .partialMatch .row:not(.header):nth-child(odd) { background: #eee; }
+  .partialMatch .row:nth-child(even) { background: #ddd; }
+  .partialMatch .row.active { background: lemonchiffon !important; }
+
+  .partialMatch .arrow { position: absolute; left: 200px; top: 0; width: 0; height: 0; border-top: 11.5px solid transparent; border-bottom: 11.5px solid transparent; border-left: 11.5px solid #555; z-index: -1; }
+  /*.partialMatch.fork .arrow { border-left: 14px solid darkblue; }
+  .partialMatch.forkComplete .arrow { border-left: 14px solid darkgreen; }*/
+
+  span.accept { color: darkblue; font-weight: bold; }
+  span.complete { color: darkgreen; font-weight: bold; }
+  span.die { color: darkred; font-weight: bold; }
+  span.pass { color: #555; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <main>
+    <table>
+      <tr><th>Event</th><th>Partial match pool</th><th>Explanation</th></tr>
+      <tr>
+        <td><pre style="">[initial state]</pre>
+          <!--<div style="position:relative;text-align:center;font-size: 20px">[initial state]</div>-->
+        </td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+          </div>
+        </td>
+        <td>We first create a single, empty partial match for every sifting pattern in the pattern library.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 1,
+ eventType: "enterTown",
+ actor: "Yann"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch fork">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+              <div class="arrow"></div>
+            </div>
+            <div class="partialMatch accept">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row active">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+          </div>
+        </td>
+        <td>Yann arrives in town. We fork the empty partial match and create a <span class="accept">new partial match</span> with the first set of variables bound.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 2,
+ eventType: "irrelevantEvent",
+ actor: "Mia"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+          </div>
+        </td>
+        <td>An irrelevant event occurs. The pool of partial matches is <span class="pass">unchanged</span>.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 3,
+ eventType: "showHospitality",
+ actor: "Eve",
+ target: "Yann"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch fork">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+              <div class="arrow"></div>
+            </div>
+            <div class="partialMatch accept">
+              <div class="row header">breakHospitality_13</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row active">e2: 3, host: Eve</div>
+              <div class="row">e3: ???</div>
+            </div>
+          </div>
+        </td>
+        <td>Eve shows Yann hospitality. We again fork off a <span class="accept">new partial match</span> with the next set of variables bound.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 4,
+ eventType: "pickpocket",
+ tags: ["harm"],
+ actor: "Eve",
+ target: "Yann"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch forkComplete">
+              <div class="row header">breakHospitality_13</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row">e3: ???</div>
+              <div class="arrow"></div>
+            </div>
+            <div class="partialMatch complete">
+              <div class="row header">breakHospitality_134</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row active">e3: 4<div>
+            </div>
+          </div>
+        </td>
+        <td>Eve pickpockets Yann, completing the pattern. We fork off a new match, mark it <span class="complete">complete</span>, and remove it from the pool.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 5,
+ eventType: "showHospitality",
+ actor: "Jake",
+ target: "Yann"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch fork">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+              <div class="arrow"></div>
+            </div>
+            <div class="partialMatch accept">
+              <div class="row header">breakHospitality_15</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row active">e2: 5, host: Jake</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch">
+              <div class="row header">breakHospitality_13</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row">e3: ???</div>
+            </div>
+          </div>
+        </td>
+        <td>Jake shows Yann hospitality. We fork off a <span class="accept">new partial match</span> from <code>breakHospitality_1</code>, with Jake as host instead of Eve.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 6,
+ eventType: "leaveTown",
+ actor: "Yann"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch die">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch die">
+              <div class="row header">breakHospitality_15</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 5, host: Jake</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch die">
+              <div class="row header">breakHospitality_13</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <!--
+            <div class="partialMatch complete">
+              <div class="row header">breakHospitality_134</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row">e3: 4<div>
+            </div>
+            -->
+          </div>
+        </td>
+        <td>Yann leaves town. We mark all remaining partial matches involving Yann as <span class="die">dead</span> and remove them from the pool.</td>
+      </tr>
+
+      <tr>
+        <td><pre>{eventID: 7,
+ eventType: "chaseAndThreaten",
+ tags: ["harm"],
+ actor: "Jake",
+ target: "Yann"}</pre></td>
+        <td>
+          <div class="partialMatches">
+            <div class="partialMatch">
+              <div class="row header">breakHospitality</div>
+              <div class="row">e1: ???, guest: ???</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <!--
+            <div class="partialMatch die">
+              <div class="row header">breakHospitality_1</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: ???, host: ???</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch die">
+              <div class="row header">breakHospitality_13</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row">e3: ???</div>
+            </div>
+            <div class="partialMatch complete">
+              <div class="row header">breakHospitality_134</div>
+              <div class="row">e1: 1, guest: Yann</div>
+              <div class="row">e2: 3, host: Eve</div>
+              <div class="row">e3: 4<div>
+            </div>
+            -->
+          </div>
+        </td>
+        <td>Jake harms Yann—but there's no valid partial matches left for this event to attach to, so <span class="pass">nothing happens</span>.</td>
+      </tr>
+    </table>
+  </main>
+</body>
+</html>
