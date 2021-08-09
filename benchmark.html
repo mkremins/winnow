@@ -9,36 +9,32 @@
   <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { font-size: 16px; font-family: Georgia; }
-  body { padding: 1rem; }
-  section { display: flex; flex-flow: row wrap; margin-bottom: 2rem; }
+  body { padding: 1rem; max-width: 800px; }
+  p { margin-bottom: 1rem; }
+  button { margin-bottom: 1rem; }
   h1, h2, h3 { margin-bottom: 1rem; width: 100%; }
-  hr { margin-bottom: 1rem; margin-top: 1rem; }
-
-  /* compiler tests */
-  pre { background: #eee; font-family: "Source Code Pro", monospace; padding: 0.5rem; }
-  pre.winnow { width: 55%; }
-  pre.felt { margin-left: 1rem; width: calc(45% - 1rem); }
-
-  /* sifting tests */
-  .siftingTest .eventTable, .siftingTest .partialMatches { font-family: "Source Code Pro", monospace; }
-  .eventTable { width: 22%; margin-right: 3%; }
-  .eventTable tbody td { white-space: pre; }
-  .eventTable tr.selected { background: lemonchiffon; }
-  .partialMatches { display: flex; flex-flow: row wrap; width: 75%; }
-  .partialMatch { margin-bottom: 1rem; margin-right: 1rem; width: 200px; }
-  .partialMatch .header { background: #555; color: white; font-weight: bold; }
-  .partialMatch.complete .header { background: darkgreen; }
-  .partialMatch.accept .header { background: darkblue; }
-  .partialMatch.die .header { background: darkred; }
-  .partialMatch .row { padding: 0.5rem; }
-  .partialMatch .row:not(.header):nth-child(odd) { background: #eee; }
-  .partialMatch .row:nth-child(even) { background: #ddd; }
+  table { border-collapse: collapse; }
+  tr:nth-child(even) td { background: #eee; }
+  th, td { padding: 0.5rem; }
   </style>
 </head>
 <body>
   <main>
     <h1>Winnow Benchmark</h1>
-    <p>Open the browser console to view timings.</p>
+    <p>This benchmark repeatedly initializes a pool of N partial sifting pattern matches and pushes 100 random events onto the database, updating the partial match pool at each step. We track the per-event time taken to update the partial match pool and report the minimum, maximum and average per-event pool update times for each value of N. The following values of N are used: 10, 50, 100, 500, 1000.</p>
+    <p>Before running the benchmark, we suggest that you open the browser console to view benchmark progress and exact timings. The page may appear to hang while the benchmark is running, but console printouts should continue.</p>
+    <button id="runBenchmarkButton">Run benchmark</button>
+    <table id="summaryTable">
+      <thead>
+        <tr>
+          <th>Pool size</th>
+          <th>Min time (ms)</th>
+          <th>Max time (ms)</th>
+          <th>Avg time (ms)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </main>
   <script src="datascript-0.18.4.min.js"></script>
   <script src="util.js"></script>
@@ -109,6 +105,23 @@
     return datascript.db_with(db, transaction);
   }
 
+  // set up the code that runs the benchmark when the button is pressed
+  const summaryTable = document.querySelector("#summaryTable");
+  const runBenchmarkButton = document.querySelector("#runBenchmarkButton");
+  const poolSizes = [10, 50, 100, 500, 1000];
+  runBenchmarkButton.onclick = function() {
+    for (const poolSize of poolSizes) {
+      console.log(`Running benchmark with pool size ${poolSize}...`);
+      const result = runBenchmark(poolSize);
+      console.log("Benchmark result", result);
+      const row = summaryTable.insertRow();
+      for (const key of ["poolSize", "min", "max", "avg"]) {
+        const cell = row.insertCell();
+        cell.innerText = result[key];
+      }
+    }
+  }
+
   // compile pattern
   const violationOfHospitality = `
 (pattern violationOfHospitality
@@ -133,62 +146,68 @@
   const compiled = compile(parsed);
   const pattern = compiled[0];
 
-  // set up partial match pool
-  let partialMatches = [];
-  for (let i = 0; i < 500; i++) {
-    partialMatches.push({pattern: pattern, bindings: {}});
+  // Run one instance of the benchmark and return the results.
+  function runBenchmark(poolSize) {
+    // set up partial match pool
+    const initialPoolSize = poolSize / 2; // this number is implicitly doubled further down
+    let partialMatches = [];
+    for (let i = 0; i < initialPoolSize; i++) {
+      partialMatches.push({pattern: pattern, bindings: {}});
+    }
+
+    // make DB
+    let db = datascript.empty_db(schema);
+
+    // generate and add characters
+    const charsToCreate = 5;
+    const testCharNames = ["Mira", "Emin", "Sarah", "Vincent", "Zach"];
+    const allCharacterIDs = [];
+    for (let i = 0; i < charsToCreate; i++) {
+      const transaction = [
+        [":db/add", -1, "type", "char"],
+        [":db/add", -1, "charName", testCharNames[i]],
+        [":db/add", -1, "value", "communalism"], // everyone values communalism for testing lol
+      ];
+      db = datascript.db_with(db, transaction);
+      allCharacterIDs.push(i+1);
+    }
+
+    // push a bunch of random events and benchmark performance
+    const events = [];
+    const timings = [];
+    const rules = "[]";
+    const firstEventID = charsToCreate + 1;
+    for (let i = firstEventID; i < firstEventID + 100; i++) {
+      // On the first iteration, immediately push an enterTown event.
+      // This doubles the match pool size and ensures that half the matches
+      // in the pool are initialized, to imitate a more "realistic" pool
+      // (with a mix of uninitialized and initialized matches)
+      // while keeping the overall pool size fixed.
+      const event = (i === firstEventID)
+        ? {eventType: "enterTown"}
+        : clone(randNth(allEventSpecs));
+      event.actor = randNth(allCharacterIDs);
+      event.target = randNth(allCharacterIDs.filter(id => id !== event.actor));
+      events.push(event);
+      db = addEvent(db, event);
+
+      // benchmark
+      const startTime = performance.now();
+      partialMatches = mapcat(partialMatches, pm => tryAdvance(pm, db, rules, i));
+      partialMatches = partialMatches.filter(pm => pm.lastStep !== "die" && pm.lastStep !== "complete");
+      const endTime = performance.now();
+      console.log(partialMatches.length, endTime - startTime);
+      timings.push(endTime - startTime);
+    }
+
+    return {
+      poolSize: poolSize,
+      avg: timings.reduce((a, b) => a + b) / timings.length,
+      min: Math.min(...timings),
+      max: Math.max(...timings),
+      allTimings: timings
+    };
   }
-  console.log(partialMatches);
-
-  // make DB
-  let db = datascript.empty_db(schema);
-
-  // generate and add characters
-  const charsToCreate = 5;
-  const testCharNames = ["Mira", "Emin", "Sarah", "Vincent", "Zach"];
-  const allCharacterIDs = [];
-  for (let i = 0; i < charsToCreate; i++) {
-    const transaction = [
-      [":db/add", -1, "type", "char"],
-      [":db/add", -1, "charName", testCharNames[i]],
-      [":db/add", -1, "value", "communalism"], // everyone values communalism for testing lol
-    ];
-    db = datascript.db_with(db, transaction);
-    allCharacterIDs.push(i+1);
-  }
-
-  // push a bunch of random events and benchmark performance
-  const events = [];
-  const timings = [];
-  const rules = "[]";
-  const firstEventID = charsToCreate + 1;
-  for (let i = firstEventID; i < firstEventID + 100; i++) {
-    // On the first iteration, immediately push an enterTown event.
-    // This doubles the match pool size and ensures that half the matches
-    // in the pool are initialized, to imitate a more "realistic" pool
-    // (with a mix of uninitialized and initialized matches)
-    // while keeping the overall pool size fixed.
-    const event = (i === firstEventID)
-      ? {eventType: "enterTown"}
-      : clone(randNth(allEventSpecs));
-    event.actor = randNth(allCharacterIDs);
-    event.target = randNth(allCharacterIDs.filter(id => id !== event.actor));
-    events.push(event);
-    db = addEvent(db, event);
-
-    // benchmark
-    const startTime = performance.now();
-    partialMatches = mapcat(partialMatches, pm => tryAdvance(pm, db, rules, i));
-    partialMatches = partialMatches.filter(pm => pm.lastStep !== "die" && pm.lastStep !== "complete");
-    const endTime = performance.now();
-    console.log(partialMatches.length, endTime - startTime);
-    timings.push(endTime - startTime);
-  }
-
-  console.log(timings);
-  console.log("avg", timings.reduce((a, b) => a + b) / timings.length);
-  console.log("min", Math.min(...timings));
-  console.log("max", Math.max(...timings));
   </script>
 </body>
 </html>
