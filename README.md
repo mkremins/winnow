@@ -30,3 +30,20 @@ More examples of Winnow sifting patterns can be found on the [tests page](https:
 
 ## Use cases
 Winnow sifting patterns can be automatically translated into lower-level [Felt](https://github.com/mkremins/felt) sifting patterns, allowing you to use Winnow as a more human-friendly syntax for the specification of Felt patterns. However, Winnow also provides unique affordances for _incremental_ story sifting (sifting while the simulation is still live) and _partial_ story sifting (identifying the beginnings of compelling event sequences that haven't yet been completed.)
+
+## Further reading
+
+For more information on Winnow, see the following paper:
+
+* [Winnow: A Domain-Specific Language for Incremental Story Sifting](https://mkremins.github.io/publications/Winnow_AIIDE2021.pdf). Max Kreminski, Melanie Dickinson, and Michael Mateas. Artificial Intelligence and Interactive Digital Entertainment Conference (AIIDE), October 2021.
+
+This paper can be cited as follows:
+
+```
+@inproceedings{kreminski2021winnow,
+  title={Winnow: A Domain-Specific Language for Incremental Story Sifting},
+  author={Kreminski, Max and Dickinson, Melanie and Mateas, Michael},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment},
+  year={2021}
+}
+```
